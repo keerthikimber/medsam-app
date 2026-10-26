@@ -155,10 +155,7 @@ if st.button("🚀 Run Few-Shot Clinical Segmentation"):
         eroded = binary_erosion(pred_mask, iterations=2)
         boundary_contour = (dilated & ~eroded).astype(np.float32)
         uncertainty = gaussian_filter(boundary_contour, sigma=1.2)
-        if uncertainty.max() > 0:
-            uncertainty = uncertainty / uncertainty.max()
-            else:
-                st.info("ℹ️ Diagnostic Result: **No Tumor Detected**")
+        
 
             res_col1, res_col2, res_col3 = st.columns(3)
 
