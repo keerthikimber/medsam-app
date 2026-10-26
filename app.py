@@ -82,7 +82,7 @@ model, load_status = load_trained_model()
 # Sidebar
 st.sidebar.header("⚙️ Clinical Diagnostic Pipeline")
 regime = st.sidebar.selectbox("Few-Shot Regime", ["2-Shot (Dual Support Prototype)", "1-Shot (Single Reference)"])
-sensitivity = st.sidebar.slider("Diagnostic Sensitivity Threshold", 0.50, 0.98, 0.75, 0.02)
+sensitivity = st.sidebar.slider("Diagnostic Sensitivity Threshold", 0.05, 0.98, 0.15, 0.02)
 show_uncertainty = st.sidebar.checkbox("Compute Epistemic Uncertainty Heatmap", value=True)
 st.sidebar.markdown("---")
 st.sidebar.info(load_status)
@@ -127,7 +127,7 @@ if st.button("🚀 Run Few-Shot Clinical Segmentation"):
             s_tensor = torch.tensor(s_arr).unsqueeze(0).unsqueeze(0)
             
             # Simulated pseudo support mask from reference
-            s_mask = (s_tensor > 0.65).float()
+            s_mask = (s_tensor > 0.35).float()
 
             with torch.no_grad():
                 pred_logits = model(q_tensor, s_tensor, s_mask)
@@ -142,10 +142,10 @@ if st.button("🚀 Run Few-Shot Clinical Segmentation"):
             brain_mask = qry_np > 0.12
             
             # Predict tumor mask
-            cutoff = 1.0 - (sensitivity * 0.45)
-            pred_mask = (prob_full >= cutoff) & brain_mask
+            cutoff = 0.50 - (sensitivity * 0.30)
+            pred_mask = (prob_full >= cutoff)
             vox_count = int(np.sum(pred_mask))
-            tumor_found = vox_count > 150
+            tumor_found = vox_count > 10
 
             # Epistemic Uncertainty
             blurred_mask = gaussian_filter(pred_mask.astype(np.float32), sigma=2.0)
