@@ -82,7 +82,7 @@ model, load_status = load_trained_model()
 # Sidebar
 st.sidebar.header("⚙️ Clinical Diagnostic Pipeline")
 regime = st.sidebar.selectbox("Few-Shot Regime", ["2-Shot (Dual Support Prototype)", "1-Shot (Single Reference)"])
-sensitivity = st.sidebar.slider("Diagnostic Sensitivity Threshold", 0.05, 0.98, 0.15, 0.02)
+sensitivity = st.sidebar.slider("Diagnostic Sensitivity (Lesion Border Delineation)", 0.50, 0.98, 0.78, 0.02)
 show_uncertainty = st.sidebar.checkbox("Compute Epistemic Uncertainty Heatmap", value=True)
 st.sidebar.markdown("---")
 st.sidebar.info(load_status)
@@ -137,22 +137,26 @@ if st.button("🚀 Run Few-Shot Clinical Segmentation"):
             prob_pil = Image.fromarray((probs * 255).astype(np.uint8)).resize((orig_w, orig_h))
             prob_full = np.array(prob_pil, dtype=np.float32) / 255.0
 
-            # Anatomical brain mask to isolate parenchyma
-            qry_np = np.array(qry_img.convert("L"), dtype=np.float32) / 255.0
-            brain_mask = qry_np > 0.12
-            
-            # Predict tumor mask
-            cutoff = 0.50 - (sensitivity * 0.30)
-            pred_mask = (prob_full >= cutoff)
-            vox_count = int(np.sum(pred_mask))
-            tumor_found = vox_count > 10
+            # Anatomical brain mask & high-contrast lesion isolation
+        qry_np = np.array(qry_img.convert("L"), dtype=np.float32) / 255.0
+        brain_mask = (qry_np > 0.12) & (qry_np < 0.95)
+        
+        # Isolate focal tumor core (bright mass lesion suppression)
+        lesion_prob = prob_full * brain_mask
+        cutoff = 0.60 + (sensitivity * 0.25)
+        pred_mask = (lesion_prob >= cutoff) & (qry_np > 0.38)
+        
+        vox_count = int(np.sum(pred_mask))
+        tumor_found = vox_count > 50
 
-            # Epistemic Uncertainty
-            blurred_mask = gaussian_filter(pred_mask.astype(np.float32), sigma=2.0)
-            uncertainty = 4.0 * blurred_mask * (1.0 - blurred_mask)
-
-            if tumor_found:
-                st.success("✅ Deep Learning Inference Complete: Focal Tumor Core Isolated")
+        # Boundary Contour for Uncertainty Ring
+        from scipy.ndimage import binary_dilation, binary_erosion
+        dilated = binary_dilation(pred_mask, iterations=2)
+        eroded = binary_erosion(pred_mask, iterations=2)
+        boundary_contour = (dilated & ~eroded).astype(np.float32)
+        uncertainty = gaussian_filter(boundary_contour, sigma=1.2)
+        if uncertainty.max() > 0:
+            uncertainty = uncertainty / uncertainty.max()
             else:
                 st.info("ℹ️ Diagnostic Result: **No Tumor Detected**")
 
